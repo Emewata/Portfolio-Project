@@ -1,0 +1,274 @@
+create table CovidDeaths(
+   iso_code	varchar(10),
+   continent varchar (13),	
+   location	varchar (32),
+   date	date,
+   population int,
+   total_cases int,
+   new_cases int,
+   new_cases_smoothed decimal(10,3),
+   total_deaths	int,
+   new_deaths decimal(10,3),
+   new_deaths_smoothed	decimal(10,3),
+   total_cases_per_million decimal(10,3),
+   new_cases_per_million decimal(10,3),
+   new_cases_smoothed_per_million decimal(10,3),
+   total_deaths_per_million	decimal(10,3),
+   new_deaths_per_million decimal(10,3),
+   new_deaths_smoothed_per_million decimal(10,3),
+   reproduction_rate decimal(10,3),
+   icu_patients	int,
+   icu_patients_per_million int,	
+   hosp_patients int,
+   hosp_patients_per_million int,	
+   weekly_icu_admissions int,
+   weekly_icu_admissions_per_million int,
+   weekly_hosp_admissions int,
+   weekly_hosp_admissions_per_million int
+);
+
+
+ALTER TABLE public.coviddeaths
+    ALTER COLUMN location TYPE varchar(64),
+    ALTER COLUMN population TYPE bigint,
+    ALTER COLUMN total_cases TYPE numeric,
+    ALTER COLUMN new_cases TYPE numeric,
+    ALTER COLUMN total_deaths TYPE numeric,
+    ALTER COLUMN icu_patients TYPE numeric,
+    ALTER COLUMN icu_patients_per_million TYPE numeric,
+    ALTER COLUMN hosp_patients TYPE numeric,
+    ALTER COLUMN hosp_patients_per_million TYPE numeric,
+    ALTER COLUMN weekly_icu_admissions TYPE numeric,
+    ALTER COLUMN weekly_icu_admissions_per_million TYPE numeric,
+    ALTER COLUMN weekly_hosp_admissions TYPE numeric,
+    ALTER COLUMN weekly_hosp_admissions_per_million TYPE numeric;
+
+
+create table covidvaccinations (
+       iso_code	varchar(10),
+	   continent varchar (13),
+	   location	varchar (32), 
+	   date	date,
+	   new_tests int,	
+	   total_tests int,
+	   total_tests_per_thousand bigint,	
+	   new_tests_per_thousand bigint,
+	   new_tests_smoothed int,
+	   new_tests_smoothed_per_thousand bigint,	
+	   positive_rate bigint,
+	   tests_per_case bigint,
+	   tests_units	bigint,
+	   total_vaccinations bigint,
+	   people_vaccinated bigint,
+	   people_fully_vaccinated bigint,
+	   new_vaccinations	bigint,
+	   new_vaccinations_smoothed bigint,	
+	   total_vaccinations_per_hundred bigint,
+	   people_vaccinated_per_hundred bigint,
+	   people_fully_vaccinated_per_hundred bigint,
+	   new_vaccinations_smoothed_per_million bigint,
+	   stringency_index	bigint,
+	   population_density bigint,
+	   median_age bigint,
+	   aged_65_older bigint,
+	   aged_70_older bigint,	
+	   gdp_per_capita bigint,
+	   extreme_poverty bigint,
+	   cardiovasc_death_rate bigint,	
+	   diabetes_prevalence bigint,
+	   female_smokers bigint,
+	   male_smokers	bigint,
+	   handwashing_facilities bigint,
+	   hospital_beds_per_thousand bigint,
+	   life_expectancy bigint,
+	   human_development_index bigint
+	);
+
+	SELECT date, new_cases, new_deaths
+FROM public.coviddeaths
+WHERE location = 'Nigeria'
+  AND date BETWEEN '2021-01-01' AND '2021-01-31'
+ORDER BY date;
+
+SELECT date,
+       SUM(new_cases)  AS total_cases,
+       SUM(new_deaths) AS total_deaths,
+       SUM(new_deaths) / NULLIF(SUM(new_cases), 0) * 100 AS death_percentage
+FROM public.coviddeaths
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date;
+
+select date, sum(new_cases), sum(new_deaths), sum(new_deaths)/sum(new_cases)*100 as DeathPercentage
+from coviddeaths
+where continent is not null
+group by date
+order by 1,2;
+
+select date, sum(new_cases) as total_cases, sum(new_deaths) as total_deaths, sum(new_deaths)/sum(new_cases)*100 as DeathPercentage
+from coviddeaths
+where continent is not null
+group by date
+order by 1,2;
+
+select sum(new_cases) as total_cases, sum(new_deaths) as total_deaths, sum(new_deaths)/sum(new_cases)*100 as DeathPercentage
+from coviddeaths
+where continent is not null
+order by 1,2;
+
+select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+from coviddeaths dea
+join covidvaccinations vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+order by 1,2,3;
+
+select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+from coviddeaths dea
+join covidvaccinations vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+order by 3,4;
+
+select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+from coviddeaths dea
+join covidvaccinations vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+order by 2,3;
+
+select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, sum(vac.new_vaccinations) over (partition by dea.location order by dea.location, dea.date)
+from coviddeaths dea
+join covidvaccinations vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+order by 2,3;
+
+WITH popvsvac (continent, location, date, population, new_vaccinations, rollingpeoplevaccinated) AS (
+    SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+           SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.date)
+    FROM coviddeaths dea
+    JOIN covidvaccinations vac
+      ON dea.location = vac.location
+     AND dea.date = vac.date
+    WHERE dea.continent IS NOT NULL
+)
+SELECT *,
+       (rollingpeoplevaccinated / NULLIF(population, 0)) * 100 AS percent_vaccinated
+FROM popvsvac
+ORDER BY location, date;
+
+WITH popvsvac (continent, location, date, population, new_vaccinations, rollingpeoplevaccinated) AS (
+    SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+           SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.date)
+    FROM coviddeaths dea
+    JOIN covidvaccinations vac
+      ON dea.location = vac.location
+     AND dea.date = vac.date
+    WHERE dea.continent IS NOT NULL
+)
+SELECT *,
+       (rollingpeoplevaccinated / population)*100
+from popvsvac;
+
+DROP TABLE IF EXISTS percentpopulationvaccinated;
+
+CREATE TEMP TABLE percentpopulationvaccinated (
+    continent varchar(255),
+    location varchar(255),
+    date date,
+    population numeric,
+    new_vaccinations numeric,
+    rollingpeoplevaccinated numeric
+);
+
+INSERT INTO percentpopulationvaccinated
+SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+       SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.date)
+FROM coviddeaths dea
+JOIN covidvaccinations vac
+  ON dea.location = vac.location
+ AND dea.date = vac.date
+WHERE dea.continent IS NOT NULL;
+
+SELECT *, (rollingpeoplevaccinated / NULLIF(population, 0)) * 100 AS percent_vaccinated
+FROM percentpopulationvaccinated
+ORDER BY location, date;
+
+DROP TABLE IF EXISTS percentpopulationvaccinated;
+
+CREATE TEMP TABLE percentpopulationvaccinated (
+    continent varchar(255),
+    location varchar(255),
+    date date,
+    population numeric,
+    new_vaccinations numeric,
+    rollingpeoplevaccinated numeric
+);
+
+INSERT INTO percentpopulationvaccinated
+SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+       SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.date)
+FROM coviddeaths dea
+JOIN covidvaccinations vac
+  ON dea.location = vac.location
+ AND dea.date = vac.date
+WHERE dea.continent IS NOT NULL;
+
+create view percentpopulationvaccinated as
+select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, sum(vac.new_vaccinations) over (partition by dea.location order by dea.date) as rollingpeoplevaccinated
+from coviddeaths dea
+join covidvaccinations vac
+on dea.location = vac.location
+and dea.date =  vac.date
+where dea.continent is not null;
+
+select * from percentpopulationvaccinated;
+
+create view deathpercentage as
+select
+date,
+total_cases,
+total_deaths,
+(total_deaths/total_cases)*100 as deathpercentage
+from
+coviddeaths
+where continent is not null
+order by 1,2;
+
+DROP VIEW IF EXISTS deathpercentage;
+DROP VIEW IF EXISTS v_country_monthly_death_rate;
+CREATE VIEW v_country_monthly_death_rate AS
+SELECT
+       location,
+       DATE_TRUNC('month', date)::date AS month,
+       SUM(new_cases)  AS cases,
+       SUM(new_deaths) AS deaths,
+       SUM(new_deaths) / SUM(new_cases) * 100 AS death_percentage
+FROM coviddeaths
+WHERE continent IS NOT NULL
+GROUP BY location, DATE_TRUNC('month', date);
+
+DROP VIEW IF EXISTS v_country_monthly_death_rate;
+CREATE VIEW v_country_monthly_death_rate AS
+SELECT
+       location,
+       DATE_TRUNC('month', date)::date AS month,
+       SUM(new_cases)  AS cases,
+       SUM(new_deaths) AS deaths,
+       SUM(new_deaths) / NULLIF(SUM(new_cases), 0) * 100 AS death_percentage
+FROM coviddeaths
+WHERE continent IS NOT NULL
+GROUP BY location, DATE_TRUNC('month', date);
+
+SELECT * FROM v_country_monthly_death_rate
+ORDER BY deaths DESC NULLS LAST
+LIMIT 20;
+
+SELECT * FROM v_country_monthly_death_rate
+ORDER BY death_percentage DESC NULLS LAST
+LIMIT 20;
